@@ -11,6 +11,7 @@ import { vaultRoutes } from './routes/vault.routes';
 import { itemRoutes } from './routes/item.routes';
 import { deviceRoutes } from './routes/device.routes';
 import { auditRoutes } from './routes/audit.routes';
+import { passwordRoutes } from './routes/password.routes';
 
 // Initialize Prisma Client
 export const prisma = new PrismaClient({
@@ -60,6 +61,7 @@ async function buildServer() {
   await fastify.register(authRoutes, { prefix: '/api/auth' });
   await fastify.register(vaultRoutes, { prefix: '/api/vaults' });
   await fastify.register(itemRoutes, { prefix: '/api/items' });
+  await fastify.register(passwordRoutes, { prefix: '/api/passwords' });
   await fastify.register(deviceRoutes, { prefix: '/api/devices' });
   await fastify.register(auditRoutes, { prefix: '/api/audit' });
 

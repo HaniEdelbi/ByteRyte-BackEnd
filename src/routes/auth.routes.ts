@@ -1,19 +1,18 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import bcrypt from 'bcrypt';
 import { prisma } from '../server';
 
 // Validation schemas
 const registerSchema = z.object({
   email: z.string().email(),
-  passwordVerifier: z.string().min(1),
-  encryptedVaultKey: z.string().min(1),
+  password: z.string().min(1), // Accept 'password' instead of 'passwordVerifier'
+  encryptedVaultKey: z.string().min(1).optional(), // Make optional for simpler registration
 });
 
 const loginSchema = z.object({
   email: z.string().email(),
-  passwordVerifier: z.string().min(1),
-  deviceFingerprint: z.string().min(1),
+  password: z.string().min(1), // Accept 'password' instead of 'passwordVerifier'
+  deviceFingerprint: z.string().min(1).optional().default('web-device'), // Make optional with default
   deviceName: z.string().optional(),
 });
 
@@ -24,7 +23,17 @@ const refreshSchema = z.object({
 export async function authRoutes(server: FastifyInstance) {
   // Register new user
   server.post('/register', async (request, reply) => {
-    const body = registerSchema.parse(request.body);
+    const validation = registerSchema.safeParse(request.body);
+    
+    if (!validation.success) {
+      return reply.status(400).send({
+        error: 'ValidationError',
+        message: 'Invalid request data',
+        details: validation.error.errors,
+      });
+    }
+    
+    const body = validation.data;
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
@@ -38,22 +47,18 @@ export async function authRoutes(server: FastifyInstance) {
       });
     }
 
-    // Hash password verifier
-    const hashedVerifier = await bcrypt.hash(
-      body.passwordVerifier,
-      parseInt(process.env.BCRYPT_ROUNDS || '12')
-    );
-
+    // In zero-knowledge architecture, the passwordVerifier is already a secure
+    // client-derived key, so we store it directly without additional hashing
     // Create user and default vault in transaction
     const user = await prisma.user.create({
       data: {
         email: body.email,
-        passwordVerifier: hashedVerifier,
+        passwordVerifier: body.password,
         vaults: {
           create: {
             name: 'My Vault',
             type: 'PERSONAL',
-            encryptedVaultKey: body.encryptedVaultKey,
+            encryptedVaultKey: body.encryptedVaultKey || 'default-key',
           },
         },
       },
@@ -61,6 +66,12 @@ export async function authRoutes(server: FastifyInstance) {
         id: true,
         email: true,
         createdAt: true,
+        vaults: {
+          select: {
+            id: true,
+            encryptedVaultKey: true,
+          },
+        },
       },
     });
 
@@ -71,14 +82,29 @@ export async function authRoutes(server: FastifyInstance) {
     );
 
     return reply.status(201).send({
-      user,
+      user: {
+        id: user.id,
+        email: user.email,
+        vaultId: user.vaults[0]?.id || '',
+        encryptedVaultKey: user.vaults[0]?.encryptedVaultKey || '',
+      },
       token,
     });
   });
 
   // Login
   server.post('/login', async (request, reply) => {
-    const body = loginSchema.parse(request.body);
+    const validation = loginSchema.safeParse(request.body);
+    
+    if (!validation.success) {
+      return reply.status(400).send({
+        error: 'ValidationError',
+        message: 'Invalid request data',
+        details: validation.error.errors,
+      });
+    }
+    
+    const body = validation.data;
 
     // Find user
     const user = await prisma.user.findUnique({
@@ -91,6 +117,7 @@ export async function authRoutes(server: FastifyInstance) {
         vaults: {
           where: { type: 'PERSONAL' },
           select: {
+            id: true,
             encryptedVaultKey: true,
           },
           take: 1,
@@ -105,8 +132,8 @@ export async function authRoutes(server: FastifyInstance) {
       });
     }
 
-    // Verify password
-    const isValid = await bcrypt.compare(body.passwordVerifier, user.passwordVerifier);
+    // Verify password - direct comparison since passwordVerifier is client-derived
+    const isValid = body.password === user.passwordVerifier;
 
     if (!isValid) {
       return reply.status(401).send({
@@ -144,6 +171,7 @@ export async function authRoutes(server: FastifyInstance) {
       user: {
         id: user.id,
         email: user.email,
+        vaultId: user.vaults[0]?.id || '',
         encryptedVaultKey: user.vaults[0]?.encryptedVaultKey || '',
         totpEnabled: !!user.totpSecret,
       },

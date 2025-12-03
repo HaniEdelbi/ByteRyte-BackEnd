@@ -1,0 +1,264 @@
+// This is your Prisma schema file for MongoDB
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// PHASE 1: CORE ENTITIES
+// ============================================
+
+model User {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  email             String   @unique
+  passwordVerifier  String
+  totpSecret        String?
+  publicKey         String?
+  privateKeyBlob    String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relations
+  vaults            Vault[]  @relation("VaultOwner")
+  vaultMemberships  VaultMember[]
+  devices           Device[]
+  auditLogs         AuditLog[]
+  emergencyAccessGrantor  EmergencyAccess[] @relation("Grantor")
+  emergencyAccessGrantee  EmergencyAccess[] @relation("Grantee")
+  orgMemberships    OrgUser[]
+
+  @@map("users")
+}
+
+model Vault {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  type              VaultType @default(PERSONAL)
+  name              String
+  encryptedVaultKey String
+  ownerId           String   @db.ObjectId
+  orgId             String?  @db.ObjectId
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relations
+  owner             User     @relation("VaultOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  items             Item[]
+  members           VaultMember[]
+  organization      Organization? @relation(fields: [orgId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("vaults")
+}
+
+enum VaultType {
+  PERSONAL
+  GROUP
+  STEALTH
+  ORGANIZATION
+}
+
+model VaultMember {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  vaultId           String   @db.ObjectId
+  userId            String   @db.ObjectId
+  role              VaultRole @default(MEMBER)
+  encryptedVaultKey String
+  addedAt           DateTime @default(now())
+  
+  // Relations
+  vault             Vault    @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([vaultId, userId])
+  @@map("vault_members")
+}
+
+enum VaultRole {
+  OWNER
+  ADMIN
+  MEMBER
+  READ_ONLY
+}
+
+model Item {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  vaultId           String   @db.ObjectId
+  encryptedBlob     String
+  metadata          Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  lastViewedAt      DateTime?
+  lastCopiedAt      DateTime?
+  lastUsedAt        DateTime?
+  isDeleted         Boolean  @default(false)
+  deletedAt         DateTime?
+  
+  // Relations
+  vault             Vault    @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+
+  @@map("items")
+}
+
+model Device {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String   @db.ObjectId
+  fingerprint       String
+  name              String?
+  ipAddress         String?
+  userAgent         String?
+  lastSeen          DateTime @default(now())
+  isRevoked         Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  
+  // Relations
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, fingerprint])
+  @@map("devices")
+}
+
+model AuditLog {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String   @db.ObjectId
+  actionType        AuditAction
+  targetId          String?
+  targetType        String?
+  metadata          Json?
+  ipAddress         String?
+  userAgent         String?
+  timestamp         DateTime @default(now())
+  
+  // Relations
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("audit_logs")
+}
+
+enum AuditAction {
+  LOGIN
+  LOGOUT
+  REGISTER
+  FAILED_LOGIN
+  VAULT_CREATED
+  VAULT_DELETED
+  VAULT_ACCESSED
+  ITEM_CREATED
+  ITEM_VIEWED
+  ITEM_COPIED
+  ITEM_UPDATED
+  ITEM_DELETED
+  DEVICE_ADDED
+  DEVICE_REVOKED
+  EMERGENCY_ACCESS_GRANTED
+  EMERGENCY_ACCESS_REQUESTED
+  EMERGENCY_ACCESS_APPROVED
+  EMERGENCY_ACCESS_DENIED
+  TAMPER_DETECTED
+  SUSPICIOUS_ACTIVITY
+}
+
+// ============================================
+// PHASE 2: EMERGENCY ACCESS
+// ============================================
+
+model EmergencyAccess {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  grantorId         String   @db.ObjectId
+  granteeId         String   @db.ObjectId
+  status            EmergencyStatus @default(PENDING)
+  delayDays         Int      @default(7)
+  requestedAt       DateTime?
+  approvedAt        DateTime?
+  deniedAt          DateTime?
+  expiresAt         DateTime?
+  encryptedVaultKey String?
+  createdAt         DateTime @default(now())
+  
+  // Relations
+  grantor           User     @relation("Grantor", fields: [grantorId], references: [id], onDelete: Cascade)
+  grantee           User     @relation("Grantee", fields: [granteeId], references: [id], onDelete: Cascade)
+
+  @@unique([grantorId, granteeId])
+  @@map("emergency_access")
+}
+
+enum EmergencyStatus {
+  PENDING
+  ACCEPTED
+  REQUESTED
+  APPROVED
+  DENIED
+  EXPIRED
+}
+
+// ============================================
+// PHASE 5: ENTERPRISE & ORGANIZATIONS
+// ============================================
+
+model Organization {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  name              String
+  domain            String?  @unique
+  settings          Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relations
+  vaults            Vault[]
+  users             OrgUser[]
+  roles             OrgRole[]
+  policies          OrgPolicy[]
+
+  @@map("organizations")
+}
+
+model OrgUser {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  orgId             String   @db.ObjectId
+  userId            String   @db.ObjectId
+  roleId            String?  @db.ObjectId
+  isAdmin           Boolean  @default(false)
+  joinedAt          DateTime @default(now())
+  
+  // Relations
+  organization      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role              OrgRole? @relation(fields: [roleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([orgId, userId])
+  @@map("org_users")
+}
+
+model OrgRole {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  orgId             String   @db.ObjectId
+  name              String
+  permissions       Json
+  createdAt         DateTime @default(now())
+  
+  // Relations
+  organization      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  users             OrgUser[]
+
+  @@unique([orgId, name])
+  @@map("org_roles")
+}
+
+model OrgPolicy {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  orgId             String   @db.ObjectId
+  policyType        String
+  config            Json
+  isEnabled         Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relations
+  organization      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@map("org_policies")
+}

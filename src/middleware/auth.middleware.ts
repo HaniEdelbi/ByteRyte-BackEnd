@@ -12,6 +12,7 @@ export async function authenticate(request: FastifyRequest) {
   } catch (error) {
     const err: any = new Error('Authentication required. Please login again.');
     err.statusCode = 401;
+    err.code = 'UNAUTHORIZED';
     throw err;
   }
 }

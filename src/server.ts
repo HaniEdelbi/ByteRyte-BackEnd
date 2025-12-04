@@ -73,21 +73,36 @@ async function buildServer() {
   await fastify.register(deviceRoutes, { prefix: '/api/devices' });
   await fastify.register(auditRoutes, { prefix: '/api/audit' });
 
+  // 404 handler - return JSON instead of HTML
+  fastify.setNotFoundHandler((request, reply) => {
+    reply.status(404).send({
+      statusCode: 404,
+      error: 'Not Found',
+      message: `Route ${request.method}:${request.url} not found`,
+    });
+  });
+
   // Global error handler
   fastify.setErrorHandler((error: any, _request, reply) => {
     fastify.log.error(error);
 
+    // Always set Content-Type to JSON
+    reply.type('application/json');
+
     // Handle known error types
     if (error.statusCode) {
       return reply.status(error.statusCode).send({
-        error: error.name,
+        statusCode: error.statusCode,
+        error: error.name || 'Error',
         message: error.message,
+        code: error.code,
       });
     }
 
     // Handle validation errors
     if (error.validation) {
       return reply.status(400).send({
+        statusCode: 400,
         error: 'ValidationError',
         message: 'Invalid request data',
         details: error.validation,
@@ -97,6 +112,7 @@ async function buildServer() {
     // Handle Prisma errors
     if (error.code?.startsWith('P')) {
       return reply.status(400).send({
+        statusCode: 400,
         error: 'DatabaseError',
         message: 'Database operation failed',
         code: error.code,
@@ -105,6 +121,7 @@ async function buildServer() {
 
     // Default error response
     return reply.status(500).send({
+      statusCode: 500,
       error: 'InternalServerError',
       message: process.env.NODE_ENV === 'development' ? error.message : 'An unexpected error occurred',
     });

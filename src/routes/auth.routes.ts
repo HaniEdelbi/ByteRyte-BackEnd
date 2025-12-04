@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../server';
+import { SessionService } from '../services/session.service';
 
 // Validation schemas
 const registerSchema = z.object({
@@ -80,6 +81,9 @@ export async function authRoutes(server: FastifyInstance) {
       { userId: user.id },
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
+
+    // Create session
+    await SessionService.createSession(user.id, 'web-device', token);
 
     return reply.status(201).send({
       user: {
@@ -167,6 +171,10 @@ export async function authRoutes(server: FastifyInstance) {
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
+    // Create/update session
+    await SessionService.createSession(user.id, body.deviceFingerprint, token);
+    await SessionService.updateSessionActivity(user.id, body.deviceFingerprint);
+
     return reply.send({
       user: {
         id: user.id,
@@ -179,10 +187,33 @@ export async function authRoutes(server: FastifyInstance) {
     });
   });
 
-  // Logout (client-side token deletion, optional server-side blacklist)
-  server.post('/logout', async (_request, reply) => {
-    // In a production app, you might want to blacklist the token here
-    return reply.send({ message: 'Logged out successfully' });
+  // Logout (always return success, even if no token)
+  server.post('/logout', {
+    schema: {
+      body: {
+        type: 'object',
+        additionalProperties: true,
+      },
+    },
+  }, async (request, reply) => {
+    // Accept empty body or any body content
+    try {
+      // Try to get userId from token if present
+      const authHeader = request.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        try {
+          const decoded = server.jwt.verify(token) as { userId: string };
+          await SessionService.destroySession(decoded.userId);
+        } catch (err) {
+          // Token invalid or expired, ignore
+        }
+      }
+    } catch (error) {
+      // Ignore errors, always return success
+    }
+    
+    return reply.status(200).send({ success: true, message: 'Logged out successfully' });
   });
 
   // Refresh token
@@ -192,6 +223,15 @@ export async function authRoutes(server: FastifyInstance) {
     try {
       // Verify the refresh token
       const decoded = server.jwt.verify(body.refreshToken) as { userId: string };
+
+      // Validate session still exists
+      const isValid = await SessionService.validateSession(decoded.userId);
+      if (!isValid) {
+        return reply.status(401).send({
+          error: 'UnauthorizedError',
+          message: 'Session no longer valid',
+        });
+      }
 
       // Generate new access token
       const token = server.jwt.sign(
@@ -204,6 +244,26 @@ export async function authRoutes(server: FastifyInstance) {
       return reply.status(401).send({
         error: 'UnauthorizedError',
         message: 'Invalid or expired refresh token',
+      });
+    }
+  });
+
+  // Get active sessions (requires authentication)
+  server.get('/sessions', async (request, reply) => {
+    try {
+      await request.jwtVerify();
+      const userId = (request.user as { userId: string }).userId;
+
+      const sessions = await SessionService.getUserSessions(userId);
+
+      return reply.send({
+        success: true,
+        data: sessions,
+      });
+    } catch (error) {
+      return reply.status(401).send({
+        error: 'UnauthorizedError',
+        message: 'Authentication required',
       });
     }
   });

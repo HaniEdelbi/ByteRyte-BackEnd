@@ -32,8 +32,11 @@ async function buildServer() {
 
   // CORS
   await fastify.register(cors, {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:8080',
+    origin: process.env.NODE_ENV === 'production' 
+      ? (process.env.CORS_ORIGIN || 'http://localhost:8080')
+      : true, // Allow all origins in development
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   });
 
   // Rate Limiting
@@ -46,6 +49,11 @@ async function buildServer() {
   await fastify.register(jwt, {
     secret: process.env.JWT_SECRET || 'byteryte-super-secret-jwt-key-change-in-production',
   });
+
+  // Verify JWT setup
+  if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
+    console.warn('⚠️  WARNING: Using default JWT secret in production!');
+  }
 
   // Health check endpoint
   fastify.get('/health', async () => {

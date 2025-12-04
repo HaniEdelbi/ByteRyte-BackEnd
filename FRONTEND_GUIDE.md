@@ -574,7 +574,8 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
     await registerUser(email, password);
     window.location.href = '/dashboard.html';
   } catch (error) {
-    alert('Registration failed: ' + error.message);
+    // Show error notification instead of alert
+    showNotification('Registration failed: ' + error.message, 'error');
   }
 });
 
@@ -588,7 +589,8 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     await loginUser(email, password);
     window.location.href = '/dashboard.html';
   } catch (error) {
-    alert('Login failed: ' + error.message);
+    // Show error notification instead of alert
+    showNotification('Login failed: ' + error.message, 'error');
   }
 });
 
@@ -631,6 +633,22 @@ function displayItems(items) {
 async function viewItem(itemId) {
   const item = await getPassword(itemId);
   showPasswordModal(item);
+}
+
+// Notification helper function
+function showNotification(message, type = 'info') {
+  // This assumes you have a notification system in your UI
+  // Replace with your actual notification implementation
+  // Examples: toast library, custom notification component, etc.
+  
+  const notification = document.createElement('div');
+  notification.className = `notification notification-${type}`;
+  notification.textContent = message;
+  document.body.appendChild(notification);
+  
+  setTimeout(() => {
+    notification.remove();
+  }, 5000);
 }
 ```
 

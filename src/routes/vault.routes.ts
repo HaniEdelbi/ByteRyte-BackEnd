@@ -27,7 +27,7 @@ const updateMemberRoleSchema = z.object({
 });
 
 export async function vaultRoutes(server: FastifyInstance) {
-  // Get all vaults for authenticated user
+
   server.get('/', { onRequest: [authenticate] }, async (request, reply) => {
     const { userId } = request as AuthenticatedRequest;
 
@@ -70,7 +70,7 @@ export async function vaultRoutes(server: FastifyInstance) {
     });
   });
 
-  // Get single vault details
+
   server.get('/:id', { onRequest: [authenticate] }, async (request, reply) => {
     const { userId } = request as AuthenticatedRequest;
     const { id } = request.params as { id: string };
@@ -95,7 +95,7 @@ export async function vaultRoutes(server: FastifyInstance) {
       throw new NotFoundError('Vault');
     }
 
-    // Check access
+
     const hasAccess =
       vault.ownerId === userId ||
       vault.members.some((m: any) => m.userId === userId);
@@ -104,7 +104,7 @@ export async function vaultRoutes(server: FastifyInstance) {
       throw new ForbiddenError('You do not have access to this vault');
     }
 
-    // Return encrypted vault key for this user
+
     let encryptedVaultKey = vault.encryptedVaultKey;
     if (vault.ownerId !== userId) {
       const membership = vault.members.find((m: any) => m.userId === userId);
@@ -139,7 +139,7 @@ export async function vaultRoutes(server: FastifyInstance) {
     });
   });
 
-  // Create new vault
+
   server.post<{ Body: CreateVaultRequest }>(
     '/',
     { onRequest: [authenticate] },
@@ -178,7 +178,7 @@ export async function vaultRoutes(server: FastifyInstance) {
     }
   );
 
-  // Update vault
+
   server.put('/:id', { onRequest: [authenticate] }, async (request, reply) => {
     const { userId } = request as AuthenticatedRequest;
     const { id } = request.params as { id: string };
@@ -222,7 +222,7 @@ export async function vaultRoutes(server: FastifyInstance) {
     });
   });
 
-  // Delete vault
+
   server.delete('/:id', { onRequest: [authenticate] }, async (request, reply) => {
     const { userId } = request as AuthenticatedRequest;
     const { id } = request.params as { id: string };
@@ -257,12 +257,12 @@ export async function vaultRoutes(server: FastifyInstance) {
     });
   });
 
-  // Get vault items
+
   server.get('/:id/items', { onRequest: [authenticate] }, async (request, reply) => {
     const { userId } = request as AuthenticatedRequest;
     const { id } = request.params as { id: string };
 
-    // Check vault access
+
     const vault = await prisma.vault.findUnique({
       where: { id },
       include: {
@@ -282,7 +282,7 @@ export async function vaultRoutes(server: FastifyInstance) {
       throw new ForbiddenError('You do not have access to this vault');
     }
 
-    // Get items
+
     const items = await prisma.item.findMany({
       where: {
         vaultId: id,
@@ -308,7 +308,7 @@ export async function vaultRoutes(server: FastifyInstance) {
     });
   });
 
-  // Add member to vault
+
   server.post('/:id/members', { onRequest: [authenticate] }, async (request, reply) => {
     const { userId } = request as AuthenticatedRequest;
     const { id } = request.params as { id: string };
@@ -320,7 +320,7 @@ export async function vaultRoutes(server: FastifyInstance) {
 
     const { userEmail, role, encryptedVaultKey } = validation.data;
 
-    // Check vault exists and user is owner/admin
+
     const vault = await prisma.vault.findUnique({
       where: { id },
       include: { members: true },
@@ -338,7 +338,7 @@ export async function vaultRoutes(server: FastifyInstance) {
       throw new ForbiddenError('Only vault owner or admin can add members');
     }
 
-    // Find user to add
+
     const userToAdd = await prisma.user.findUnique({
       where: { email: userEmail },
       select: { id: true, email: true },
@@ -352,7 +352,7 @@ export async function vaultRoutes(server: FastifyInstance) {
       });
     }
 
-    // Check if user is already a member
+
     const existingMember = vault.members.find((m) => m.userId === userToAdd.id);
     if (existingMember) {
       return reply.status(409).send({
@@ -362,7 +362,7 @@ export async function vaultRoutes(server: FastifyInstance) {
       });
     }
 
-    // Add member
+
     const newMember = await prisma.vaultMember.create({
       data: {
         vaultId: id,
@@ -397,7 +397,7 @@ export async function vaultRoutes(server: FastifyInstance) {
     });
   });
 
-  // Update member role
+
   server.put('/:id/members/:memberId', { onRequest: [authenticate] }, async (request, reply) => {
     const { userId } = request as AuthenticatedRequest;
     const { id, memberId } = request.params as { id: string; memberId: string };
@@ -409,7 +409,7 @@ export async function vaultRoutes(server: FastifyInstance) {
 
     const { role } = validation.data;
 
-    // Check vault exists and user is owner/admin
+
     const vault = await prisma.vault.findUnique({
       where: { id },
       include: { members: true },
@@ -427,7 +427,7 @@ export async function vaultRoutes(server: FastifyInstance) {
       throw new ForbiddenError('Only vault owner or admin can update member roles');
     }
 
-    // Update member role
+
     const updatedMember = await prisma.vaultMember.update({
       where: { id: memberId },
       data: { role },
@@ -457,12 +457,12 @@ export async function vaultRoutes(server: FastifyInstance) {
     });
   });
 
-  // Remove member from vault
+
   server.delete('/:id/members/:memberId', { onRequest: [authenticate] }, async (request, reply) => {
     const { userId } = request as AuthenticatedRequest;
     const { id, memberId } = request.params as { id: string; memberId: string };
 
-    // Check vault exists and user is owner/admin
+
     const vault = await prisma.vault.findUnique({
       where: { id },
       include: { members: true },
@@ -480,7 +480,7 @@ export async function vaultRoutes(server: FastifyInstance) {
       throw new ForbiddenError('Only vault owner or admin can remove members');
     }
 
-    // Get member to remove
+
     const memberToRemove = await prisma.vaultMember.findUnique({
       where: { id: memberId },
       include: {
@@ -494,7 +494,7 @@ export async function vaultRoutes(server: FastifyInstance) {
       throw new NotFoundError('Member');
     }
 
-    // Remove member
+
     await prisma.vaultMember.delete({
       where: { id: memberId },
     });

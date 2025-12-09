@@ -3,7 +3,7 @@ import { prisma } from '../server';
 import { authenticate, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { NotFoundError } from '../middleware/error.middleware';
 
-// Helper functions to extract browser and OS from user agent
+
 function extractBrowser(userAgent: string): string {
   if (userAgent.includes('Firefox')) return 'Firefox';
   if (userAgent.includes('Edg')) return 'Edge';
@@ -23,7 +23,7 @@ function extractOS(userAgent: string): string {
 }
 
 export async function deviceRoutes(server: FastifyInstance) {
-  // Get all devices/sessions for authenticated user (same email)
+
   server.get('/', { onRequest: [authenticate] }, async (request, reply) => {
     const { userId } = request as AuthenticatedRequest;
 
@@ -47,7 +47,7 @@ export async function deviceRoutes(server: FastifyInstance) {
       },
     });
 
-    // Format the response with friendly device info
+
     const formattedDevices = devices.map((device: any) => ({
       id: device.id,
       name: device.name || 'Unknown Device',
@@ -67,7 +67,7 @@ export async function deviceRoutes(server: FastifyInstance) {
     });
   });
 
-  // Revoke device access (logout from specific device)
+
   server.delete('/:id', { onRequest: [authenticate] }, async (request, reply) => {
     const { userId } = request as AuthenticatedRequest;
     const { id } = request.params as { id: string };

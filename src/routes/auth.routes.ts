@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../server';
 import { SessionService } from '../services/session.service';
 
-// Validation schemas
+
 const registerSchema = z.object({
   email: z.string().email(),
   name: z.string().min(1),
@@ -24,7 +24,7 @@ const refreshSchema = z.object({
 });
 
 export async function authRoutes(server: FastifyInstance) {
-  // Register new user
+
   server.post('/register', async (request, reply) => {
     const validation = registerSchema.safeParse(request.body);
     
@@ -38,7 +38,7 @@ export async function authRoutes(server: FastifyInstance) {
     
     const body = validation.data;
 
-    // Check if user already exists
+
     const existingUser = await prisma.user.findUnique({
       where: { email: body.email },
     });
@@ -50,9 +50,9 @@ export async function authRoutes(server: FastifyInstance) {
       });
     }
 
-    // In zero-knowledge architecture, the passwordVerifier is already a secure
-    // client-derived key, so we store it directly without additional hashing
-    // Create user and default vault in transaction
+
+
+
     const user = await prisma.user.create({
       data: {
         email: body.email,
@@ -80,13 +80,13 @@ export async function authRoutes(server: FastifyInstance) {
       },
     });
 
-    // Generate JWT token
+
     const token = server.jwt.sign(
       { userId: user.id },
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
-    // Create session
+
     await SessionService.createSession(user.id, 'web-device', token);
 
     return reply.status(201).send({
@@ -106,7 +106,7 @@ export async function authRoutes(server: FastifyInstance) {
     });
   });
 
-  // Login
+
   server.post('/login', async (request, reply) => {
     const validation = loginSchema.safeParse(request.body);
     
@@ -120,7 +120,7 @@ export async function authRoutes(server: FastifyInstance) {
     
     const body = validation.data;
 
-    // Find user
+
     const user = await prisma.user.findUnique({
       where: { email: body.email },
       select: {
@@ -148,7 +148,7 @@ export async function authRoutes(server: FastifyInstance) {
       });
     }
 
-    // Verify password - direct comparison since passwordVerifier is client-derived
+
     const isValid = body.passwordVerifier === user.passwordVerifier;
 
     if (!isValid) {
@@ -158,7 +158,7 @@ export async function authRoutes(server: FastifyInstance) {
       });
     }
 
-    // Create or update device
+
     await prisma.device.upsert({
       where: {
         userId_fingerprint: {
@@ -177,13 +177,13 @@ export async function authRoutes(server: FastifyInstance) {
       },
     });
 
-    // Generate JWT token
+
     const token = server.jwt.sign(
       { userId: user.id },
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
-    // Create/update session
+
     await SessionService.createSession(user.id, body.deviceFingerprint, token);
     await SessionService.updateSessionActivity(user.id, body.deviceFingerprint);
 
@@ -204,7 +204,7 @@ export async function authRoutes(server: FastifyInstance) {
     });
   });
 
-  // Logout (always return success, even if no token)
+
   server.post('/logout', {
     schema: {
       body: {
@@ -213,9 +213,9 @@ export async function authRoutes(server: FastifyInstance) {
       },
     },
   }, async (request, reply) => {
-    // Accept empty body or any body content
+
     try {
-      // Try to get userId from token if present
+
       const authHeader = request.headers.authorization;
       if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.substring(7);
@@ -223,25 +223,25 @@ export async function authRoutes(server: FastifyInstance) {
           const decoded = server.jwt.verify(token) as { userId: string };
           await SessionService.destroySession(decoded.userId);
         } catch (err) {
-          // Token invalid or expired, ignore
+
         }
       }
     } catch (error) {
-      // Ignore errors, always return success
+
     }
     
     return reply.status(200).send({ success: true, message: 'Logged out successfully' });
   });
 
-  // Refresh token
+
   server.post('/refresh', async (request, reply) => {
     const body = refreshSchema.parse(request.body);
 
     try {
-      // Verify the refresh token
+
       const decoded = server.jwt.verify(body.refreshToken) as { userId: string };
 
-      // Validate session still exists
+
       const isValid = await SessionService.validateSession(decoded.userId);
       if (!isValid) {
         return reply.status(401).send({
@@ -250,7 +250,7 @@ export async function authRoutes(server: FastifyInstance) {
         });
       }
 
-      // Generate new access token
+
       const token = server.jwt.sign(
         { userId: decoded.userId },
         { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
@@ -265,7 +265,7 @@ export async function authRoutes(server: FastifyInstance) {
     }
   });
 
-  // Get active sessions (requires authentication)
+
   server.get('/sessions', async (request, reply) => {
     try {
       await request.jwtVerify();

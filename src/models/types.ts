@@ -1,4 +1,4 @@
-// Request types
+
 export interface CreateVaultRequest {
   name: string;
   type: 'PERSONAL' | 'GROUP' | 'STEALTH';
@@ -27,7 +27,7 @@ export interface ShareVaultRequest {
   role: 'VIEWER' | 'EDITOR' | 'ADMIN';
 }
 
-// Response types
+
 export interface UserResponse {
   id: string;
   email: string;

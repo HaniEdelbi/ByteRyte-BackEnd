@@ -3,7 +3,7 @@ import { PrismaClient, AuditAction } from '@prisma/client';
 export const prisma = new PrismaClient();
 
 export class AuditService {
-  // Simplified log method that accepts either object or individual parameters
+
   static async log(
     userIdOrRequest: string | { userId: string; ip?: string; headers?: any },
     actionType?: AuditAction | string,
@@ -16,7 +16,7 @@ export class AuditService {
     }
 
     try {
-      // Handle object parameter (new way)
+
       if (typeof userIdOrRequest === 'object' && userIdOrRequest.userId) {
         const request = userIdOrRequest;
         await prisma.auditLog.create({
@@ -31,7 +31,7 @@ export class AuditService {
           },
         });
       }
-      // Handle individual parameters (old way - for compatibility)
+
       else if (typeof userIdOrRequest === 'string') {
         await prisma.auditLog.create({
           data: {

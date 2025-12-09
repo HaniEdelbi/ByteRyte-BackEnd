@@ -18,7 +18,7 @@ const updateItemSchema = z.object({
 });
 
 export async function itemRoutes(server: FastifyInstance) {
-  // Create new item
+
   server.post<{ Body: CreateItemRequest }>(
     '/',
     { onRequest: [authenticate] },
@@ -32,7 +32,7 @@ export async function itemRoutes(server: FastifyInstance) {
 
       const { vaultId, encryptedBlob, metadata } = validation.data;
 
-      // Check vault access
+
       const vault = await prisma.vault.findUnique({
         where: { id: vaultId },
         include: { members: true },
@@ -73,7 +73,7 @@ export async function itemRoutes(server: FastifyInstance) {
     }
   );
 
-  // Get single item
+
   server.get('/:id', { onRequest: [authenticate] }, async (request, reply) => {
     const { userId } = request as AuthenticatedRequest;
     const { id } = request.params as { id: string };
@@ -91,7 +91,7 @@ export async function itemRoutes(server: FastifyInstance) {
       throw new NotFoundError('Item');
     }
 
-    // Check access
+
     const hasAccess =
       item.vault.ownerId === userId ||
       item.vault.members.some((m: any) => m.userId === userId);
@@ -100,7 +100,7 @@ export async function itemRoutes(server: FastifyInstance) {
       throw new ForbiddenError('You do not have access to this item');
     }
 
-    // Update last viewed
+
     await prisma.item.update({
       where: { id },
       data: { lastViewedAt: new Date() },
@@ -119,7 +119,7 @@ export async function itemRoutes(server: FastifyInstance) {
     });
   });
 
-  // Update item
+
   server.put<{ Body: UpdateItemRequest }>(
     '/:id',
     { onRequest: [authenticate] },
@@ -147,7 +147,7 @@ export async function itemRoutes(server: FastifyInstance) {
         throw new NotFoundError('Item');
       }
 
-      // Check write access
+
       const hasWriteAccess =
         item.vault.ownerId === userId ||
         item.vault.members.some(
@@ -180,7 +180,7 @@ export async function itemRoutes(server: FastifyInstance) {
     }
   );
 
-  // Delete item (soft delete)
+
   server.delete('/:id', { onRequest: [authenticate] }, async (request, reply) => {
     const { userId } = request as AuthenticatedRequest;
     const { id } = request.params as { id: string };
@@ -198,7 +198,7 @@ export async function itemRoutes(server: FastifyInstance) {
       throw new NotFoundError('Item');
     }
 
-    // Check write access
+
     const hasWriteAccess =
       item.vault.ownerId === userId ||
       item.vault.members.some(
@@ -209,7 +209,7 @@ export async function itemRoutes(server: FastifyInstance) {
       throw new ForbiddenError('You do not have permission to delete this item');
     }
 
-    // Soft delete
+
     await prisma.item.update({
       where: { id },
       data: {
@@ -231,7 +231,7 @@ export async function itemRoutes(server: FastifyInstance) {
     });
   });
 
-  // Track item copy event
+
   server.post('/:id/copy', { onRequest: [authenticate] }, async (request, reply) => {
     const { userId } = request as AuthenticatedRequest;
     const { id } = request.params as { id: string };
@@ -249,7 +249,7 @@ export async function itemRoutes(server: FastifyInstance) {
       throw new NotFoundError('Item');
     }
 
-    // Check access
+
     const hasAccess =
       item.vault.ownerId === userId ||
       item.vault.members.some((m: any) => m.userId === userId);
@@ -258,7 +258,7 @@ export async function itemRoutes(server: FastifyInstance) {
       throw new ForbiddenError('You do not have access to this item');
     }
 
-    // Update last copied
+
     await prisma.item.update({
       where: { id },
       data: { lastCopiedAt: new Date() },

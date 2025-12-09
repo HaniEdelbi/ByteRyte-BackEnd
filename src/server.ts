@@ -5,7 +5,6 @@ import rateLimit from '@fastify/rate-limit';
 import jwt from '@fastify/jwt';
 import { PrismaClient } from '@prisma/client';
 
-// Routes
 import { authRoutes } from './routes/auth.routes';
 import { vaultRoutes } from './routes/vault.routes';
 import { itemRoutes } from './routes/item.routes';
@@ -13,49 +12,40 @@ import { deviceRoutes } from './routes/device.routes';
 import { auditRoutes } from './routes/audit.routes';
 import { passwordRoutes } from './routes/password.routes';
 
-// Initialize Prisma Client
 export const prisma = new PrismaClient({
   log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
 });
 
-// Create Fastify instance
 const fastify = Fastify({
   logger: process.env.NODE_ENV === 'development',
 });
 
-// Register plugins
 async function buildServer() {
-  // Security - Helmet
   await fastify.register(helmet, {
-    contentSecurityPolicy: false, // Disable CSP for API
+    contentSecurityPolicy: false,
   });
 
-  // CORS
   await fastify.register(cors, {
     origin: process.env.NODE_ENV === 'production' 
       ? (process.env.CORS_ORIGIN || 'http://localhost:8080')
-      : true, // Allow all origins in development
+      : true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   });
 
-  // Rate Limiting
   await fastify.register(rateLimit, {
     max: parseInt(process.env.RATE_LIMIT_MAX || '100'),
-    timeWindow: parseInt(process.env.RATE_LIMIT_TIMEWINDOW || '60000'), // 1 minute
+    timeWindow: parseInt(process.env.RATE_LIMIT_TIMEWINDOW || '60000'),
   });
 
-  // JWT
   await fastify.register(jwt, {
     secret: process.env.JWT_SECRET || 'byteryte-super-secret-jwt-key-change-in-production',
   });
 
-  // Verify JWT setup
   if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
     console.warn('⚠️  WARNING: Using default JWT secret in production!');
   }
 
-  // Health check endpoint
   fastify.get('/health', async () => {
     return {
       status: 'healthy',
@@ -65,7 +55,6 @@ async function buildServer() {
     };
   });
 
-  // Register routes
   await fastify.register(authRoutes, { prefix: '/api/auth' });
   await fastify.register(vaultRoutes, { prefix: '/api/vaults' });
   await fastify.register(itemRoutes, { prefix: '/api/items' });
@@ -73,7 +62,6 @@ async function buildServer() {
   await fastify.register(deviceRoutes, { prefix: '/api/devices' });
   await fastify.register(auditRoutes, { prefix: '/api/audit' });
 
-  // 404 handler - return JSON instead of HTML
   fastify.setNotFoundHandler((request, reply) => {
     reply.status(404).send({
       statusCode: 404,
@@ -82,14 +70,11 @@ async function buildServer() {
     });
   });
 
-  // Global error handler
   fastify.setErrorHandler((error: any, _request, reply) => {
     fastify.log.error(error);
 
-    // Always set Content-Type to JSON
     reply.type('application/json');
 
-    // Handle known error types
     if (error.statusCode) {
       return reply.status(error.statusCode).send({
         statusCode: error.statusCode,

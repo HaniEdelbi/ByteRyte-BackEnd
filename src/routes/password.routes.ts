@@ -26,14 +26,14 @@ const updatePasswordSchema = z.object({
  * This provides backwards compatibility and clearer API naming for password operations
  */
 export async function passwordRoutes(server: FastifyInstance) {
-  // Create new password
+
   server.post<{ Body: CreateItemRequest }>(
     '/',
     { onRequest: [authenticate] },
     async (request, reply) => {
       const { userId } = request as AuthenticatedRequest;
       
-      // Log the incoming request body for debugging
+
       console.log('Received request body:', JSON.stringify(request.body, null, 2));
       
       const validation = createPasswordSchema.safeParse(request.body);
@@ -48,7 +48,7 @@ export async function passwordRoutes(server: FastifyInstance) {
 
       const { vaultId, encryptedBlob, category, favorite, metadata } = validation.data;
 
-      // Check vault access
+
       const vault = await prisma.vault.findUnique({
         where: { id: vaultId },
         include: { members: true },
@@ -66,7 +66,7 @@ export async function passwordRoutes(server: FastifyInstance) {
         throw new ForbiddenError('You do not have access to this vault');
       }
 
-      // Map category to ItemCategory enum
+
       const categoryMap: Record<string, 'LOGIN' | 'PAYMENT' | 'SECURE_NOTE' | 'OTHER'> = {
         'login': 'LOGIN',
         'payment': 'PAYMENT',
@@ -74,7 +74,7 @@ export async function passwordRoutes(server: FastifyInstance) {
         'other': 'OTHER',
       };
 
-      // Create the password item
+
       const item = await prisma.item.create({
         data: {
           vaultId,
@@ -85,7 +85,7 @@ export async function passwordRoutes(server: FastifyInstance) {
         },
       });
 
-      // Log the action
+
       await AuditService.log(
         request as AuthenticatedRequest,
         'ITEM_CREATED',
@@ -102,14 +102,14 @@ export async function passwordRoutes(server: FastifyInstance) {
     }
   );
 
-  // Get all passwords for authenticated user
+
   server.get(
     '/',
     { onRequest: [authenticate] },
     async (request, reply) => {
       const { userId } = request as AuthenticatedRequest;
 
-      // Get all vaults the user has access to
+
       const vaults = await prisma.vault.findMany({
         where: {
           OR: [
@@ -122,7 +122,7 @@ export async function passwordRoutes(server: FastifyInstance) {
         },
       });
 
-      // Flatten all items from all vaults
+
       const items = vaults.flatMap(vault => vault.items);
 
       return reply.send({
@@ -141,7 +141,7 @@ export async function passwordRoutes(server: FastifyInstance) {
     }
   );
 
-  // Get a specific password by ID
+
   server.get<{ Params: { id: string } }>(
     '/:id',
     { onRequest: [authenticate] },
@@ -158,7 +158,7 @@ export async function passwordRoutes(server: FastifyInstance) {
         throw new NotFoundError('Password');
       }
 
-      // Check access
+
       const hasAccess =
         item.vault.ownerId === userId ||
         item.vault.members.some((m: any) => m.userId === userId);
@@ -171,7 +171,7 @@ export async function passwordRoutes(server: FastifyInstance) {
     }
   );
 
-  // Update a password
+
   server.put<{ Params: { id: string }; Body: UpdateItemRequest }>(
     '/:id',
     { onRequest: [authenticate] },
@@ -186,7 +186,7 @@ export async function passwordRoutes(server: FastifyInstance) {
 
       const { encryptedBlob, category, favorite, metadata } = validation.data;
 
-      // Get item and check access
+
       const item = await prisma.item.findUnique({
         where: { id },
         include: { vault: { include: { members: true } } },
@@ -206,7 +206,7 @@ export async function passwordRoutes(server: FastifyInstance) {
         throw new ForbiddenError('You do not have permission to update this password');
       }
 
-      // Map category if provided
+
       const categoryMap: Record<string, 'LOGIN' | 'PAYMENT' | 'SECURE_NOTE' | 'OTHER'> = {
         'login': 'LOGIN',
         'payment': 'PAYMENT',
@@ -214,7 +214,7 @@ export async function passwordRoutes(server: FastifyInstance) {
         'other': 'OTHER',
       };
 
-      // Update the password
+
       const updatedItem = await prisma.item.update({
         where: { id },
         data: {
@@ -225,7 +225,7 @@ export async function passwordRoutes(server: FastifyInstance) {
         },
       });
 
-      // Log the action
+
       await AuditService.log(
         request as AuthenticatedRequest,
         'ITEM_UPDATED',
@@ -245,7 +245,7 @@ export async function passwordRoutes(server: FastifyInstance) {
     }
   );
 
-  // Delete a password
+
   server.delete<{ Params: { id: string } }>(
     '/:id',
     { onRequest: [authenticate] },
@@ -253,7 +253,7 @@ export async function passwordRoutes(server: FastifyInstance) {
       const { userId } = request as AuthenticatedRequest;
       const { id } = request.params;
 
-      // Get item and check access
+
       const item = await prisma.item.findUnique({
         where: { id },
         include: { vault: { include: { members: true } } },
@@ -273,12 +273,12 @@ export async function passwordRoutes(server: FastifyInstance) {
         throw new ForbiddenError('You do not have permission to delete this password');
       }
 
-      // Delete the password
+
       await prisma.item.delete({
         where: { id },
       });
 
-      // Log the action
+
       await AuditService.log(
         request as AuthenticatedRequest,
         'ITEM_DELETED',

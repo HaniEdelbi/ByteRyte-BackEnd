@@ -8,7 +8,7 @@ const registerSchema = z.object({
   email: z.string().email(),
   name: z.string().min(1),
   passwordVerifier: z.string().min(1),
-  encryptedVaultKey: z.string().min(1),
+  encryptedVaultKey: z.string().min(50).max(500), // AES-GCM encrypted vault key (base64)
   deviceFingerprint: z.string().min(1).optional().default('web-device'),
 });
 
@@ -98,6 +98,10 @@ export async function authRoutes(server: FastifyInstance) {
         email: user.email,
         name: user.name,
         createdAt: user.createdAt,
+      },
+      vault: {
+        id: user.vaults[0]?.id,
+        encryptedVaultKey: user.vaults[0]?.encryptedVaultKey,
       },
     });
   });
@@ -192,6 +196,10 @@ export async function authRoutes(server: FastifyInstance) {
         email: user.email,
         name: user.name,
         createdAt: user.createdAt,
+      },
+      vault: {
+        id: user.vaults[0]?.id,
+        encryptedVaultKey: user.vaults[0]?.encryptedVaultKey,
       },
     });
   });

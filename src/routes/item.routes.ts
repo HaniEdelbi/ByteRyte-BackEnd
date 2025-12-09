@@ -44,7 +44,7 @@ export async function itemRoutes(server: FastifyInstance) {
 
       const hasAccess =
         vault.ownerId === userId ||
-        vault.members.some((m) => m.userId === userId);
+        vault.members.some((m: any) => m.userId === userId);
 
       if (!hasAccess) {
         throw new ForbiddenError('You do not have access to this vault');
@@ -94,7 +94,7 @@ export async function itemRoutes(server: FastifyInstance) {
     // Check access
     const hasAccess =
       item.vault.ownerId === userId ||
-      item.vault.members.some((m) => m.userId === userId);
+      item.vault.members.some((m: any) => m.userId === userId);
 
     if (!hasAccess) {
       throw new ForbiddenError('You do not have access to this item');
@@ -252,7 +252,7 @@ export async function itemRoutes(server: FastifyInstance) {
     // Check access
     const hasAccess =
       item.vault.ownerId === userId ||
-      item.vault.members.some((m) => m.userId === userId);
+      item.vault.members.some((m: any) => m.userId === userId);
 
     if (!hasAccess) {
       throw new ForbiddenError('You do not have access to this item');
@@ -277,3 +277,4 @@ export async function itemRoutes(server: FastifyInstance) {
     });
   });
 }
+

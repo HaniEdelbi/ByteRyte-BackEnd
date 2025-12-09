@@ -48,7 +48,7 @@ export async function deviceRoutes(server: FastifyInstance) {
     });
 
     // Format the response with friendly device info
-    const formattedDevices = devices.map(device => ({
+    const formattedDevices = devices.map((device: any) => ({
       id: device.id,
       name: device.name || 'Unknown Device',
       fingerprint: device.fingerprint,

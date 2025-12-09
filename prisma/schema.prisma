@@ -6,6 +6,7 @@ generator client {
 
 datasource db {
   provider = "mongodb"
+  url      = env("DATABASE_URL")
 }
 
 // ============================================
@@ -155,6 +156,10 @@ enum AuditAction {
   VAULT_CREATED
   VAULT_DELETED
   VAULT_ACCESSED
+  VAULT_UPDATED
+  VAULT_MEMBER_ADDED
+  VAULT_MEMBER_REMOVED
+  VAULT_MEMBER_UPDATED
   ITEM_CREATED
   ITEM_VIEWED
   ITEM_COPIED

@@ -6,14 +6,16 @@ import { SessionService } from '../services/session.service';
 // Validation schemas
 const registerSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(1), // Accept 'password' instead of 'passwordVerifier'
-  encryptedVaultKey: z.string().min(1).optional(), // Make optional for simpler registration
+  name: z.string().min(1),
+  passwordVerifier: z.string().min(1),
+  encryptedVaultKey: z.string().min(1),
+  deviceFingerprint: z.string().min(1).optional().default('web-device'),
 });
 
 const loginSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(1), // Accept 'password' instead of 'passwordVerifier'
-  deviceFingerprint: z.string().min(1).optional().default('web-device'), // Make optional with default
+  passwordVerifier: z.string().min(1),
+  deviceFingerprint: z.string().min(1).optional().default('web-device'), 
   deviceName: z.string().optional(),
 });
 
@@ -54,18 +56,20 @@ export async function authRoutes(server: FastifyInstance) {
     const user = await prisma.user.create({
       data: {
         email: body.email,
-        passwordVerifier: body.password,
+        name: body.name,
+        passwordVerifier: body.passwordVerifier,
         vaults: {
           create: {
             name: 'My Vault',
             type: 'PERSONAL',
-            encryptedVaultKey: body.encryptedVaultKey || 'default-key',
+            encryptedVaultKey: body.encryptedVaultKey,
           },
         },
       },
       select: {
         id: true,
         email: true,
+        name: true,
         createdAt: true,
         vaults: {
           select: {
@@ -86,13 +90,15 @@ export async function authRoutes(server: FastifyInstance) {
     await SessionService.createSession(user.id, 'web-device', token);
 
     return reply.status(201).send({
+      success: true,
+      message: 'User registered successfully',
+      token,
       user: {
         id: user.id,
         email: user.email,
-        vaultId: user.vaults[0]?.id || '',
-        encryptedVaultKey: user.vaults[0]?.encryptedVaultKey || '',
+        name: user.name,
+        createdAt: user.createdAt,
       },
-      token,
     });
   });
 
@@ -116,8 +122,10 @@ export async function authRoutes(server: FastifyInstance) {
       select: {
         id: true,
         email: true,
+        name: true,
         passwordVerifier: true,
         totpSecret: true,
+        createdAt: true,
         vaults: {
           where: { type: 'PERSONAL' },
           select: {
@@ -137,7 +145,7 @@ export async function authRoutes(server: FastifyInstance) {
     }
 
     // Verify password - direct comparison since passwordVerifier is client-derived
-    const isValid = body.password === user.passwordVerifier;
+    const isValid = body.passwordVerifier === user.passwordVerifier;
 
     if (!isValid) {
       return reply.status(401).send({
@@ -176,14 +184,15 @@ export async function authRoutes(server: FastifyInstance) {
     await SessionService.updateSessionActivity(user.id, body.deviceFingerprint);
 
     return reply.send({
+      success: true,
+      message: 'Login successful',
+      token,
       user: {
         id: user.id,
         email: user.email,
-        vaultId: user.vaults[0]?.id || '',
-        encryptedVaultKey: user.vaults[0]?.encryptedVaultKey || '',
-        totpEnabled: !!user.totpSecret,
+        name: user.name,
+        createdAt: user.createdAt,
       },
-      token,
     });
   });
 

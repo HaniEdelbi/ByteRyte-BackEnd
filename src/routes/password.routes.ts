@@ -9,11 +9,15 @@ import { CreateItemRequest, UpdateItemRequest } from '../models/types';
 const createPasswordSchema = z.object({
   vaultId: z.string().min(1),
   encryptedBlob: z.string().min(1),
+  category: z.enum(['login', 'payment', 'secure-note', 'other']).optional().default('other'),
+  favorite: z.boolean().optional().default(false),
   metadata: z.record(z.any()).optional(),
 });
 
 const updatePasswordSchema = z.object({
   encryptedBlob: z.string().min(1).optional(),
+  category: z.enum(['login', 'payment', 'secure-note', 'other']).optional(),
+  favorite: z.boolean().optional(),
   metadata: z.record(z.any()).optional(),
 });
 
@@ -42,7 +46,7 @@ export async function passwordRoutes(server: FastifyInstance) {
         });
       }
 
-      const { vaultId, encryptedBlob, metadata } = validation.data;
+      const { vaultId, encryptedBlob, category, favorite, metadata } = validation.data;
 
       // Check vault access
       const vault = await prisma.vault.findUnique({
@@ -62,11 +66,21 @@ export async function passwordRoutes(server: FastifyInstance) {
         throw new ForbiddenError('You do not have access to this vault');
       }
 
+      // Map category to ItemCategory enum
+      const categoryMap: Record<string, 'LOGIN' | 'PAYMENT' | 'SECURE_NOTE' | 'OTHER'> = {
+        'login': 'LOGIN',
+        'payment': 'PAYMENT',
+        'secure-note': 'SECURE_NOTE',
+        'other': 'OTHER',
+      };
+
       // Create the password item
       const item = await prisma.item.create({
         data: {
           vaultId,
           encryptedBlob,
+          category: categoryMap[category || 'other'],
+          favorite: favorite || false,
           metadata: metadata || {},
         },
       });
@@ -112,8 +126,17 @@ export async function passwordRoutes(server: FastifyInstance) {
       const items = vaults.flatMap(vault => vault.items);
 
       return reply.send({
-        items,
+        success: true,
         count: items.length,
+        items: items.map(item => ({
+          id: item.id,
+          vaultId: item.vaultId,
+          encryptedBlob: item.encryptedBlob,
+          category: item.category.toLowerCase().replace('_', '-'),
+          favorite: item.favorite,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+        })),
       });
     }
   );
@@ -161,7 +184,7 @@ export async function passwordRoutes(server: FastifyInstance) {
         throw new ValidationError('Invalid request data');
       }
 
-      const { encryptedBlob, metadata } = validation.data;
+      const { encryptedBlob, category, favorite, metadata } = validation.data;
 
       // Get item and check access
       const item = await prisma.item.findUnique({
@@ -183,11 +206,21 @@ export async function passwordRoutes(server: FastifyInstance) {
         throw new ForbiddenError('You do not have permission to update this password');
       }
 
+      // Map category if provided
+      const categoryMap: Record<string, 'LOGIN' | 'PAYMENT' | 'SECURE_NOTE' | 'OTHER'> = {
+        'login': 'LOGIN',
+        'payment': 'PAYMENT',
+        'secure-note': 'SECURE_NOTE',
+        'other': 'OTHER',
+      };
+
       // Update the password
       const updatedItem = await prisma.item.update({
         where: { id },
         data: {
           encryptedBlob: encryptedBlob || item.encryptedBlob,
+          category: category ? categoryMap[category] : item.category,
+          favorite: favorite !== undefined ? favorite : item.favorite,
           metadata: metadata || item.metadata,
         },
       });
@@ -202,8 +235,12 @@ export async function passwordRoutes(server: FastifyInstance) {
       );
 
       return reply.send({
+        success: true,
         message: 'Password updated successfully',
-        item: updatedItem,
+        data: {
+          id: updatedItem.id,
+          updatedAt: updatedItem.updatedAt,
+        },
       });
     }
   );
@@ -251,6 +288,7 @@ export async function passwordRoutes(server: FastifyInstance) {
       );
 
       return reply.send({
+        success: true,
         message: 'Password deleted successfully',
       });
     }

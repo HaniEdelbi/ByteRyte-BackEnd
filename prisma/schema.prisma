@@ -6,7 +6,6 @@ generator client {
 
 datasource db {
   provider = "mongodb"
-  url      = env("DATABASE_URL")
 }
 
 // ============================================
@@ -16,6 +15,7 @@ datasource db {
 model User {
   id                String   @id @default(auto()) @map("_id") @db.ObjectId
   email             String   @unique
+  name              String?
   passwordVerifier  String
   totpSecret        String?
   publicKey         String?
@@ -88,6 +88,8 @@ model Item {
   id                String   @id @default(auto()) @map("_id") @db.ObjectId
   vaultId           String   @db.ObjectId
   encryptedBlob     String
+  category          ItemCategory @default(OTHER)
+  favorite          Boolean  @default(false)
   metadata          Json?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -101,6 +103,13 @@ model Item {
   vault             Vault    @relation(fields: [vaultId], references: [id], onDelete: Cascade)
 
   @@map("items")
+}
+
+enum ItemCategory {
+  LOGIN
+  PAYMENT
+  SECURE_NOTE
+  OTHER
 }
 
 model Device {

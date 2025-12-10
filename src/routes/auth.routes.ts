@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../server';
 import { SessionService } from '../services/session.service';
-
+import { authenticate } from '../middleware/auth.middleware';
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -21,6 +21,17 @@ const loginSchema = z.object({
 
 const refreshSchema = z.object({
   refreshToken: z.string().min(1),
+});
+
+const updateProfileSchema = z.object({
+  name: z.string().min(1).optional(),
+  email: z.string().email().optional(),
+});
+
+const changePasswordSchema = z.object({
+  currentPasswordVerifier: z.string().min(1),
+  newPasswordVerifier: z.string().min(1),
+  newEncryptedVaultKey: z.string().min(50).max(500),
 });
 
 export async function authRoutes(server: FastifyInstance) {
@@ -282,6 +293,118 @@ export async function authRoutes(server: FastifyInstance) {
         error: 'UnauthorizedError',
         message: 'Authentication required',
       });
+    }
+  });
+
+  server.put('/profile', {
+    preHandler: authenticate,
+  }, async (request, reply) => {
+    try {
+      const body = updateProfileSchema.parse(request.body);
+      
+      if (!body.name && !body.email) {
+        return reply.status(400).send({
+          error: 'ValidationError',
+          message: 'At least one field (name or email) must be provided',
+        });
+      }
+
+      const userId = (request.user as { userId: string }).userId;
+
+      if (body.email) {
+        const existingUser = await prisma.user.findUnique({
+          where: { email: body.email },
+        });
+
+        if (existingUser && existingUser.id !== userId) {
+          return reply.status(409).send({
+            error: 'ConflictError',
+            message: 'Email already in use',
+          });
+        }
+      }
+
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: {
+          ...(body.name && { name: body.name }),
+          ...(body.email && { email: body.email }),
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          createdAt: true,
+        },
+      });
+
+      const response: any = {
+        success: true,
+        data: updatedUser,
+      };
+
+      if (body.email) {
+        const token = server.jwt.sign({ userId: updatedUser.id });
+        response.token = token;
+      }
+
+      return reply.send(response);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({
+          error: 'ValidationError',
+          message: 'Invalid request data',
+          details: error.errors,
+        });
+      }
+      throw error;
+    }
+  });
+
+  server.post('/change-password', {
+    preHandler: authenticate,
+  }, async (request, reply) => {
+    try {
+      const body = changePasswordSchema.parse(request.body);
+      const userId = (request.user as { userId: string }).userId;
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { passwordVerifier: true },
+      });
+
+      if (!user || user.passwordVerifier !== body.currentPasswordVerifier) {
+        return reply.status(401).send({
+          error: 'UnauthorizedError',
+          message: 'Current password is incorrect',
+        });
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: userId },
+          data: { passwordVerifier: body.newPasswordVerifier },
+        });
+
+        await tx.vault.updateMany({
+          where: { ownerId: userId },
+          data: { encryptedVaultKey: body.newEncryptedVaultKey },
+        });
+      });
+
+      return reply.send({
+        success: true,
+        message: 'Password changed successfully',
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({
+          error: 'ValidationError',
+          message: 'Invalid request data',
+          details: error.errors,
+        });
+      }
+      throw error;
     }
   });
 }
